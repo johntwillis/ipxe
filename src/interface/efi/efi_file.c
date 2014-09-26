@@ -30,6 +30,7 @@ FILE_LICENCE ( GPL2_OR_LATER );
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <errno.h>
 #include <wchar.h>
 #include <ipxe/image.h>
@@ -75,6 +76,27 @@ static const char * efi_file_name ( struct efi_file *file ) {
 }
 
 /**
+ * Find EFI file image
+ *
+ * @v wname		Filename
+ * @ret image		Image, or NULL
+ */
+static struct image * efi_file_find ( const CHAR16 *wname ) {
+	char name[ wcslen ( wname ) + 1 /* NUL */ ];
+	struct image *image;
+
+	/* Find image */
+	snprintf ( name, sizeof ( name ), "%ls", wname );
+	list_for_each_entry ( image, &images, list ) {
+		if ( strcasecmp ( image->name, name ) == 0 )
+			return image;
+	}
+
+	return NULL;
+
+}
+
+/**
  * Open file
  *
  * @v this		EFI file
@@ -89,7 +111,6 @@ efi_file_open ( EFI_FILE_PROTOCOL *this, EFI_FILE_PROTOCOL **new,
 		CHAR16 *wname, UINT64 mode __unused,
 		UINT64 attributes __unused ) {
 	struct efi_file *file = container_of ( this, struct efi_file, file );
-	char name[ wcslen ( wname ) + 1 /* NUL */ ];
 	struct efi_file *new_file;
 	struct image *image;
 
@@ -113,10 +134,9 @@ efi_file_open ( EFI_FILE_PROTOCOL *this, EFI_FILE_PROTOCOL **new,
 	}
 
 	/* Identify image */
-	snprintf ( name, sizeof ( name ), "%ls", wname );
-	image = find_image ( name );
+	image = efi_file_find ( wname );
 	if ( ! image ) {
-		DBGC ( file, "EFIFILE \"%s\" does not exist\n", name );
+		DBGC ( file, "EFIFILE \"%ls\" does not exist\n", wname );
 		return EFI_NOT_FOUND;
 	}
 
@@ -477,6 +497,7 @@ static EFI_STATUS EFIAPI
 efi_file_open_volume ( EFI_SIMPLE_FILE_SYSTEM_PROTOCOL *filesystem __unused,
 		       EFI_FILE_PROTOCOL **file ) {
 
+	DBGC ( &efi_file_root, "EFIFILE open volume\n" );
 	*file = &efi_file_root.file;
 	return 0;
 }
@@ -489,38 +510,49 @@ static EFI_SIMPLE_FILE_SYSTEM_PROTOCOL efi_simple_file_system_protocol = {
 
 /** Dummy block I/O reset */
 static EFI_STATUS EFIAPI
-efi_block_io_reset ( EFI_BLOCK_IO_PROTOCOL *this __unused,
-		     BOOLEAN extended __unused ) {
+efi_block_io_reset ( EFI_BLOCK_IO_PROTOCOL *this __unused, BOOLEAN extended ) {
+
+	DBGC ( &efi_file_root, "EFIFILE block %sreset\n",
+	       ( extended ? "extended " : "" ) );
 	return 0;
 }
 
 /** Dummy block I/O read */
 static EFI_STATUS EFIAPI
-efi_block_io_read_blocks ( EFI_BLOCK_IO_PROTOCOL *this __unused,
-			   UINT32 MediaId __unused, EFI_LBA lba __unused,
-			   UINTN len __unused, VOID *data __unused ) {
+efi_block_io_read_blocks ( EFI_BLOCK_IO_PROTOCOL *this __unused, UINT32 MediaId,
+			   EFI_LBA lba, UINTN len, VOID *data ) {
+
+	DBGC ( &efi_file_root, "EFIFILE block read ID %#08x LBA %#08llx -> "
+	       "%p+%zx\n", MediaId, ( ( unsigned long long ) lba ),
+	       data, ( ( size_t ) len ) );
 	return EFI_NO_MEDIA;
 }
 
 /** Dummy block I/O write */
 static EFI_STATUS EFIAPI
 efi_block_io_write_blocks ( EFI_BLOCK_IO_PROTOCOL *this __unused,
-			    UINT32 MediaId __unused, EFI_LBA lba __unused,
-			    UINTN len __unused, VOID *data __unused ) {
+			    UINT32 MediaId, EFI_LBA lba, UINTN len,
+			    VOID *data ) {
+
+	DBGC ( &efi_file_root, "EFIFILE block write ID %#08x LBA %#08llx <- "
+	       "%p+%zx\n", MediaId, ( ( unsigned long long ) lba ),
+	       data, ( ( size_t ) len ) );
 	return EFI_NO_MEDIA;
 }
 
 /** Dummy block I/O flush */
 static EFI_STATUS EFIAPI
 efi_block_io_flush_blocks ( EFI_BLOCK_IO_PROTOCOL *this __unused ) {
+
+	DBGC ( &efi_file_root, "EFIFILE block flush\n" );
 	return 0;
 }
 
 /** Dummy block I/O media */
 static EFI_BLOCK_IO_MEDIA efi_block_io_media = {
 	.MediaId = EFI_MEDIA_ID_MAGIC,
-	.MediaPresent = 1,
-	.ReadOnly = 1,
+	.MediaPresent = TRUE,
+	.ReadOnly = TRUE,
 	.BlockSize = 1,
 };
 
@@ -536,17 +568,23 @@ static EFI_BLOCK_IO_PROTOCOL efi_block_io_protocol = {
 
 /** Dummy disk I/O read */
 static EFI_STATUS EFIAPI
-efi_disk_io_read_disk ( EFI_DISK_IO_PROTOCOL *this __unused,
-			UINT32 MediaId __unused, UINT64 offset __unused,
-			UINTN len __unused, VOID *data __unused ) {
+efi_disk_io_read_disk ( EFI_DISK_IO_PROTOCOL *this __unused, UINT32 MediaId,
+			UINT64 offset, UINTN len, VOID *data ) {
+
+	DBGC ( &efi_file_root, "EFIFILE disk read ID %#08x offset %#08llx -> "
+	       "%p+%zx\n", MediaId, ( ( unsigned long long ) offset ),
+	       data, ( ( size_t ) len ) );
 	return EFI_NO_MEDIA;
 }
 
 /** Dummy disk I/O write */
 static EFI_STATUS EFIAPI
-efi_disk_io_write_disk ( EFI_DISK_IO_PROTOCOL *this __unused,
-			 UINT32 MediaId __unused, UINT64 offset __unused,
-			 UINTN len __unused, VOID *data __unused ) {
+efi_disk_io_write_disk ( EFI_DISK_IO_PROTOCOL *this __unused, UINT32 MediaId,
+			 UINT64 offset, UINTN len, VOID *data ) {
+
+	DBGC ( &efi_file_root, "EFIFILE disk write ID %#08x offset %#08llx <- "
+	       "%p+%zx\n", MediaId, ( ( unsigned long long ) offset ),
+	       data, ( ( size_t ) len ) );
 	return EFI_NO_MEDIA;
 }
 

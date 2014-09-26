@@ -46,6 +46,7 @@ ZBIN		:= ./util/zbin
 ELF2EFI32	:= ./util/elf2efi32
 ELF2EFI64	:= ./util/elf2efi64
 EFIROM		:= ./util/efirom
+EFIFATBIN	:= ./util/efifatbin
 ICCFIX		:= ./util/iccfix
 EINFO		:= ./util/einfo
 GENKEYMAP	:= ./util/genkeymap.pl
@@ -149,6 +150,7 @@ all : $(ALL)
 #
 everything :
 	$(Q)$(MAKE) --no-print-directory $(ALL) \
+		bin/3c509.rom bin/intel.rom bin/intel.mrom \
 		bin-i386-efi/ipxe.efi bin-i386-efi/ipxe.efidrv \
 		bin-i386-efi/ipxe.efirom \
 		bin-x86_64-efi/ipxe.efi bin-x86_64-efi/ipxe.efidrv \

@@ -313,6 +313,8 @@ FILE_LICENCE ( GPL2_OR_LATER );
 #define ERRFILE_xenstore	      ( ERRFILE_OTHER | 0x00420000 )
 #define ERRFILE_xenbus		      ( ERRFILE_OTHER | 0x00430000 )
 #define ERRFILE_xengrant	      ( ERRFILE_OTHER | 0x00440000 )
+#define ERRFILE_efi_utils	      ( ERRFILE_OTHER | 0x00450000 )
+#define ERRFILE_efi_wrap	      ( ERRFILE_OTHER | 0x00460000 )
 
 /** @} */
 

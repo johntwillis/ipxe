@@ -95,6 +95,29 @@ print_character:
 	.size	print_character, . - print_character
 
 /*****************************************************************************
+ * Utility function: print space
+ *
+ * Parameters:
+ *   %ds:di : output buffer (or %di=0 to print to console)
+ * Returns:
+ *   %ds:di : next character in output buffer (if applicable)
+ *****************************************************************************
+ */
+	.section ".prefix.lib", "awx", @progbits
+	.code16
+	.globl	print_space
+print_space:
+	/* Preserve registers */
+	pushw	%ax
+	/* Print space */
+	movb	$( ' ' ), %al
+	call	print_character
+	/* Restore registers and return */
+	popw	%ax
+	ret
+	.size	print_space, . - print_space
+
+/*****************************************************************************
  * Utility function: print a NUL-terminated string
  *
  * Parameters:
@@ -231,12 +254,10 @@ print_kill_line:
 	movb	$( '\r' ), %al
 	call	print_character
 	/* Print 79 spaces */
-	movb	$( ' ' ), %al
 	movw	$79, %cx
-1:	call	print_character
+1:	call	print_space
 	loop	1b
 	/* Print CR */
-	movb	$( '\r' ), %al
 	call	print_character
 	/* Restore registers and return */
 	popw	%cx
@@ -725,9 +746,15 @@ a20_death_message:
 	xorw	%di, %di
 	movl	%esi, %eax
 	call	print_hex_dword
+	call	print_space
+	movl	%ecx, %eax
+	call	print_hex_dword
 	movw	$payload_death_message, %si
 	call	print_message
-2:	jmp	2b
+2:	/* Halt system */
+	cli
+	hlt
+	jmp	2b
 	.section ".prefix.data", "aw", @progbits
 payload_death_message:
 	.asciz	"\nPayload inaccessible - cannot continue\n"
